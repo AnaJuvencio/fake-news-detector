@@ -1,0 +1,197 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, 3.10]
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3
+          DEBUG: 1
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-mock flake8 black isort
+
+    - name: Lint with flake8
+      run: |
+        # Para erros críticos
+        flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Para avisos gerais
+        flake8 src --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+
+    - name: Check code formatting with black
+      run: |
+        black --check src/
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only src/
+
+    - name: Wait for LocalStack
+      run: |
+        timeout 30 bash -c 'until curl -s http://localhost:4566/health; do sleep 1; done'
+
+    - name: Setup LocalStack S3
+      run: |
+        pip install awscli
+        aws configure set aws_access_key_id test
+        aws configure set aws_secret_access_key test
+        aws configure set default.region us-east-1
+        aws --endpoint-url=http://localhost:4566 s3 mb s3://fake-news-models
+
+    - name: Run tests with pytest
+      env:
+        S3_ENDPOINT: http://localhost:4566
+        S3_BUCKET: fake-news-models
+        AWS_ACCESS_KEY_ID: test
+        AWS_SECRET_ACCESS_KEY: test
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  build-and-test-docker:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: |
+        docker build -f docker/Dockerfile.api -t fake-news-api .
+
+    - name: Test Docker container
+      run: |
+        # Inicia LocalStack
+        docker run -d --name localstack -p 4566:4566 \
+          -e SERVICES=s3 \
+          -e DEBUG=1 \
+          -e AWS_DEFAULT_REGION=us-east-1 \
+          localstack/localstack:latest
+
+        # Aguarda LocalStack inicializar
+        sleep 30
+
+        # Cria bucket de teste
+        docker exec localstack aws --endpoint-url=http://localhost:4566 s3 mb s3://fake-news-models
+
+        # Inicia container da API
+        docker run -d --name fake-news-api \
+          --link localstack \
+          -e S3_ENDPOINT=http://localstack:4566 \
+          -e S3_BUCKET=fake-news-models \
+          -p 8000:8000 \
+          fake-news-api
+
+        # Aguarda API inicializar
+        sleep 15
+
+        # Testa health check
+        curl -f http://localhost:8000/health
+
+        # Cleanup
+        docker stop fake-news-api localstack
+        docker rm fake-news-api localstack
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run Bandit Security Scanner
+      run: |
+        pip install bandit
+        bandit -r src/ -f json -o bandit-report.json
+
+    - name: Run Safety Check
+      run: |
+        pip install safety
+        safety check --json --output safety-report.json
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  notebook-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        pip install jupyter nbconvert pytest nbval
+        pip install -r requirements.txt
+
+    - name: Test notebooks
+      run: |
+        # Testa se os notebooks podem ser executados sem erros
+        pytest --nbval notebooks/ --ignore=notebooks/.ipynb_checkpoints
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, build-and-test-docker, security-scan]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Aqui você adicionaria steps reais de deployment
+        # Por exemplo, deploy para AWS, Heroku, etc.
+
+    - name: Notify deployment
+      run: |
+        echo "Deployment completed successfully!"
+        # Aqui você poderia enviar notificações (Slack, email, etc.)

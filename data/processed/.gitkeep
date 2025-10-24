@@ -1,0 +1,3 @@
+# Mantém a estrutura da pasta data/processed
+# Arquivos processados e limpos ficam aqui
+# Evite versionar arquivos muito grandes (.csv > 10MB)

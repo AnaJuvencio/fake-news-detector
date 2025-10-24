@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # LocalStack para simulação do S3
+  localstack:
+    image: localstack/localstack:latest
+    container_name: fake-news-localstack
+    ports:
+      - "4566:4566"  # LocalStack endpoint
+      - "4510-4559:4510-4559"  # range de portas para serviços
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - PERSISTENCE=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - "./localstack_data:/tmp/localstack"
+      - "./localstack_bootstrap.sh:/etc/localstack/init/ready.d/init-aws.sh"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MLflow para tracking de experimentos
+  mlflow:
+    image: python:3.9-slim
+    container_name: fake-news-mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      bash -c "
+        pip install mlflow boto3 &&
+        mlflow server 
+          --backend-store-uri sqlite:///mlflow/mlflow.db 
+          --default-artifact-root /mlflow/artifacts 
+          --host 0.0.0.0 
+          --port 5000
+      "
+    depends_on:
+      - localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API de detecção de fake news
+  fake-news-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: fake-news-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app/src
+      - S3_ENDPOINT=http://localstack:4566
+      - S3_BUCKET=fake-news-models
+      - MODEL_KEY=models/best_model.joblib
+      - VECTORIZER_KEY=models/vectorizer.joblib
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - localstack
+      - mlflow
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Jupyter Notebook para desenvolvimento
+  jupyter:
+    image: jupyter/scipy-notebook:latest
+    container_name: fake-news-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=fake-news-dev
+    volumes:
+      - "../notebooks:/home/jovyan/notebooks"
+      - "../data:/home/jovyan/data"
+      - "../src:/home/jovyan/src"
+    command: start-notebook.sh --NotebookApp.token='fake-news-dev'
+
+volumes:
+  mlflow_data:
+  localstack_data:
+
+networks:
+  default:
+    name: fake-news-network
