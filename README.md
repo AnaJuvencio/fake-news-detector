@@ -22,9 +22,8 @@ Este projeto implementa um detector de fake news com as seguintes característic
 - **Métricas de Fairness**: Demographic Parity Index (DI) e Statistical Parity Difference (SPD)
 - **API REST**: FastAPI para servir predições
 - **Armazenamento**: S3 simulado via LocalStack
-- **Tracking**: MLflow para experimentos
-- **CI/CD**: GitHub Actions com testes automatizados
-- **Containerização**: Docker para deploy
+- **Tracking**: MLflow para experimentos  
+- **Containerização**: Docker para ambiente local
 
 ## 📁 Estrutura do Projeto
 
@@ -52,9 +51,8 @@ fake-news-detector/
 │   ├── Dockerfile.api                   # Container da API
 │   ├── docker-compose.yml               # Orquestração completa
 │   └── localstack_bootstrap.sh          # Setup automático do S3
-├── .github/
-│   └── workflows/
-│       └── ci.yml                       # Pipeline CI/CD
+├── run-local.ps1                      # Script para ambiente completo
+├── dev-local.ps1                      # Script para desenvolvimento
 ├── requirements.txt
 ├── .gitignore
 └── README.md
@@ -65,39 +63,52 @@ fake-news-detector/
 ### Pré-requisitos
 
 - Python 3.8+
-- Docker e Docker Compose
+- Docker e Docker Compose (opcional, para ambiente completo)
 - Git
 
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/fake-news-detector.git
+git clone https://github.com/AnaJuvencio/fake-news-detector.git
 cd fake-news-detector
 ```
 
-### 2. Instale as dependências
+### 2. Escolha seu ambiente:
 
-```bash
-pip install -r requirements.txt
+#### 🐳 **Opção A: Ambiente Completo (Docker) - Recomendado**
+```powershell
+# Inicia todos os serviços automaticamente
+.\run-local.ps1
 ```
+**Inclui**: LocalStack S3, API FastAPI, MLflow, Jupyter Lab
 
-### 3. Configure o ambiente com Docker
-
-```bash
-# Inicia todos os serviços (LocalStack, MLflow, API, Jupyter)
-cd docker
-docker-compose up -d
-
-# Verifica se os serviços estão rodando
-docker-compose ps
+#### 🔧 **Opção B: Desenvolvimento Simples (apenas Python)**
+```powershell
+# Configura venv + dependências mínimas + testes
+.\dev-local.ps1
 ```
+**Inclui**: Virtual environment, testes de qualidade, dependências básicas
 
-### 4. Acesse os serviços
+### 3. Serviços disponíveis
 
-- **API**: http://localhost:8000
-- **MLflow**: http://localhost:5000
-- **Jupyter**: http://localhost:8888 (token: `fake-news-dev`)
-- **LocalStack S3**: http://localhost:4566
+| Serviço | URL | Disponível em |
+|---------|-----|---------------|
+| 🌐 **API FastAPI** | http://localhost:8000 | Ambas opções |
+| 📊 **MLflow** | http://localhost:5000 | Opção A (Docker) |
+| 📓 **Jupyter Lab** | http://localhost:8888 | Opção A (Docker) |
+| ☁️ **LocalStack S3** | http://localhost:4566 | Opção A (Docker) |
+
+### 4. Teste rápido da API
+
+```powershell
+# Health check
+curl http://localhost:8000/health
+
+# Predição de exemplo
+curl -X POST "http://localhost:8000/predict" `
+     -H "Content-Type: application/json" `
+     -d '{"text":"Esta é uma notícia de exemplo para análise"}'
+```
 
 ## 💻 Como Usar
 
@@ -249,26 +260,45 @@ aws --endpoint-url=http://localhost:4566 s3 ls s3://fake-news-models/models/
 aws --endpoint-url=http://localhost:4566 s3 cp model.joblib s3://fake-news-models/models/
 ```
 
-## 🔄 CI/CD
+## � Scripts Locais
 
-O pipeline GitHub Actions inclui:
+### 🚀 `run-local.ps1` - Ambiente Completo
+```powershell
+.\run-local.ps1
+```
+**O que faz:**
+- ✅ Verifica se Docker está rodando
+- 🐳 Inicia LocalStack, MLflow, API e Jupyter
+- 📋 Mostra status dos serviços
+- 🌐 Lista URLs de acesso
 
-### Testes
-- **Unit tests**: pytest com coverage
-- **Lint**: flake8, black, isort
-- **Security**: bandit, safety
-- **Notebooks**: nbval para validação
+### 🛠️ `dev-local.ps1` - Desenvolvimento
+```powershell  
+.\dev-local.ps1
+```
+**O que faz:**
+- 📦 Cria virtual environment
+- 📚 Instala dependências mínimas
+- 🔍 Executa flake8 (lint)
+- 🎨 Verifica formatação (black)
+- 📋 Organiza imports (isort)
+- 🧪 Roda testes (pytest)
 
-### Build e Deploy
-- **Docker build**: Constrói imagem da API
-- **Integration tests**: Testa com LocalStack
-- **Security scanning**: Análise de vulnerabilidades
+### 📊 Controle de Qualidade Local
 
-### Configuração
+```powershell
+# Formatar código automaticamente
+black src
 
-O pipeline é ativado automaticamente em:
-- Push para `main` ou `develop`
-- Pull requests para `main`
+# Organizar imports
+isort src
+
+# Executar testes específicos
+pytest tests/test_api.py -v
+
+# Ver cobertura de testes
+pytest tests/ --cov=src --cov-report=html
+```
 
 ## 🤝 Contribuição
 
@@ -345,6 +375,45 @@ S3_BUCKET=fake-news-models
 MLFLOW_TRACKING_URI=http://localhost:5000
 ```
 
+## 🔧 Troubleshooting
+
+### ❌ Problemas Comuns:
+
+**"Docker não encontrado"**
+```powershell
+# Instale Docker Desktop e verifique
+docker --version
+```
+
+**"Porta já está em uso"**
+```powershell
+# Pare serviços existentes
+docker-compose down
+# Ou mate processos específicos
+netstat -ano | findstr :8000
+taskkill /PID <número_do_pid> /F
+```
+
+**"Erro de permissão no PowerShell"**
+```powershell
+# Permite execução de scripts
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**"Dependências não encontradas"**
+```powershell
+# Reinstale dependências mínimas
+pip install --upgrade pip
+pip install fastapi uvicorn scikit-learn pytest
+```
+
+**"LocalStack não responde"**
+```bash
+# Aguarde ~30s após docker-compose up
+# Teste conectividade
+curl http://localhost:4566/health
+```
+
 ## 📚 Referências
 
 - [FakeBR Dataset](https://github.com/roneysco/Fake.br-Corpus)
@@ -353,8 +422,34 @@ MLFLOW_TRACKING_URI=http://localhost:5000
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [LocalStack Documentation](https://docs.localstack.cloud/)
 - [MLflow Documentation](https://mlflow.org/docs/)
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Scikit-learn User Guide](https://scikit-learn.org/stable/user_guide.html)
 
-## 📄 Licença
+## � Custos - 100% Gratuito!
+
+### ✅ **Componentes Gratuitos:**
+- 🐙 **GitHub**: Repositório público (ilimitado)
+- 🐍 **Python & Libraries**: Scikit-learn, FastAPI, Pandas (open source)
+- 🐳 **Docker**: Desktop gratuito para uso pessoal/educacional
+- ☁️ **LocalStack**: Community edition (S3 simulado local)
+- 📊 **MLflow**: Open source (roda local)
+- 📓 **Jupyter**: Open source
+
+### 💡 **Por que é gratuito:**
+- **Sem serviços cloud pagos**: Usa LocalStack em vez de AWS real
+- **Execução local**: Docker roda na sua máquina
+- **Bibliotecas open source**: Todas as dependências são livres
+- **Sem CI/CD pago**: Removido GitHub Actions
+
+### ⚠️ **Se quiser usar serviços reais (custaria):**
+- AWS S3 real (~$0.02/GB/mês)
+- AWS EC2 (~$10+/mês)  
+- Heroku/Railway (~$5+/mês)
+- Repositório privado com Actions intensivo
+
+**Recomendação**: Mantenha tudo local para desenvolvimento e aprendizado!
+
+## �📄 Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
 
