@@ -1,8 +1,8 @@
-# 🕵️ Detector de Fake News com Análise de Fairness
+# Detector de Fake News com Análise de Fairness
 
 Este projeto implementa um sistema completo de detecção de fake news com foco especial em análise de fairness, utilizando os datasets FakeBR e FakeRecogna. O sistema inclui uma API REST, armazenamento em S3 (LocalStack), tracking de experimentos com MLflow e pipelines de CI/CD.
 
-## 📋 Índice
+## Índice
 
 - [Visão Geral](#visão-geral)
 - [Estrutura do Projeto](#estrutura-do-projeto)
@@ -14,7 +14,7 @@ Este projeto implementa um sistema completo de detecção de fake news com foco 
 - [CI/CD](#cicd)
 - [Contribuição](#contribuição)
 
-## 🎯 Visão Geral
+## Visão Geral
 
 Este projeto implementa um detector de fake news com as seguintes características:
 
@@ -58,7 +58,7 @@ fake-news-detector/
 └── README.md
 ```
 
-## 🚀 Instalação e Setup
+## Instalação e Setup
 
 ### Pré-requisitos
 
@@ -75,7 +75,7 @@ cd fake-news-detector
 
 ### 2. Escolha seu ambiente:
 
-#### 🐳 **Opção A: Ambiente Completo (Docker) - Recomendado**
+#### **Opção A: Ambiente Completo (Docker) - Recomendado**
 ```powershell
 # Inicia todos os serviços automaticamente
 .\run-local.ps1
@@ -110,7 +110,7 @@ curl -X POST "http://localhost:8000/predict" `
      -d '{"text":"Esta é uma notícia de exemplo para análise"}'
 ```
 
-## 💻 Como Usar
+## Como Usar
 
 ### 1. Processamento dos Datasets
 
@@ -129,7 +129,48 @@ Execute o notebook `03_fairness_analysis.ipynb` para:
 - Gerar visualizações para o relatório
 - Salvar resultados em `data/reports/`
 
-### 3. Usando a API
+### 3. Fluxo geral do projeto 
+
+```
+ 1. Coleta de Dados (Fake.Br e FakeRecogna)
+       • Dados de notícias reais e falsas
+       • Metadados linguísticos e estruturais
+
+       ↓
+ 2. Pré-processamento (Notebook 01 e 02)
+       • Leitura e padronização das colunas
+       • Limpeza de valores nulos/inconsistentes
+       • Criação das colunas REAL (1=real, 0=fake)
+       • Divisão dos dados em treino/teste (train_test_split com stratify)
+
+       ↓
+ 3. Treinamento do Modelo de Detecção de Fake News
+       • Realiza o treinamento dos modelos de machine learning para detecção de fake news e exporta os modelos treinados para o sistema de armazenamento S3
+       • O dataset de treino (80%) é usado para aprender;
+       • O dataset de teste (20%) é usado para avaliar o desempenho.
+
+       ↓
+ 4. Avaliação do Modelo
+       • Mede acurácia, precisão, recall e F1-score.
+       • Garante que o modelo generalize bem, sem enviesar para uma classe só.
+       • Se a classe fake for muito menor, pode exigir balanceamento.
+
+       ↓
+ 5. Análise de Justiça (Notebook 03)
+       • Usa os mesmos dados ou resultados do modelo.
+       • Mede métricas de fairness como:
+           - SPD (Statistical Parity Difference)
+           - DI (Disparate Impact)
+       • Identifica se o modelo favorece alguma categoria ou site.
+
+       ↓
+ 6. Interpretação e Discussão Ética
+       • Analisa resultados técnicos + implicações sociais.
+       • Conecta o desempenho com responsabilidade e IA ética.
+
+```
+
+### 4. Usando a API
 
 ```python
 import requests
@@ -147,7 +188,7 @@ response = requests.post(
 print(response.json())
 ```
 
-### 4. Usando via linha de comando
+### 5. Usando via linha de comando
 
 ```bash
 # Treino de modelo
@@ -162,7 +203,7 @@ curl -X POST "http://localhost:8000/predict" \
      -d '{"text": "Exemplo de notícia para análise"}'
 ```
 
-## 📊 Análise de Fairness
+## Análise de Fairness
 
 O projeto implementa duas métricas principais de fairness:
 
@@ -183,7 +224,7 @@ O projeto implementa duas métricas principais de fairness:
 - Matrizes de confusão segmentadas
 - Relatórios de fairness exportados para `data/reports/`
 
-## 🌐 API
+## API
 
 ### Endpoints Principais
 
@@ -215,7 +256,7 @@ O projeto implementa duas métricas principais de fairness:
 }
 ```
 
-## 🐳 Docker e LocalStack
+## Docker e LocalStack
 
 ### Serviços Incluídos
 
@@ -262,7 +303,7 @@ aws --endpoint-url=http://localhost:4566 s3 cp model.joblib s3://fake-news-model
 
 ## � Scripts Locais
 
-### 🚀 `run-local.ps1` - Ambiente Completo
+### `run-local.ps1` - Ambiente Completo
 ```powershell
 .\run-local.ps1
 ```
@@ -284,7 +325,7 @@ aws --endpoint-url=http://localhost:4566 s3 cp model.joblib s3://fake-news-model
 - 📋 Organiza imports (isort)
 - 🧪 Roda testes (pytest)
 
-### 📊 Controle de Qualidade Local
+### Controle de Qualidade Local
 
 ```powershell
 # Formatar código automaticamente
@@ -300,7 +341,7 @@ pytest tests/test_api.py -v
 pytest tests/ --cov=src --cov-report=html
 ```
 
-## 🤝 Contribuição
+## Contribuição
 
 ### Setup de Desenvolvimento
 
@@ -331,7 +372,7 @@ isort --check-only src/
 - Use type hints
 - Atualize README se necessário
 
-## 📈 Métricas e Monitoramento
+## Métricas e Monitoramento
 
 ### MLflow
 
@@ -346,7 +387,7 @@ isort --check-only src/
 - **Model Performance**: Registrado no MLflow
 - **Fairness Metrics**: Salvos em `data/reports/`
 
-## 🔧 Configuração
+## Configuração
 
 ### Variáveis de Ambiente
 
@@ -377,7 +418,7 @@ MLFLOW_TRACKING_URI=http://localhost:5000
 
 ## 🔧 Troubleshooting
 
-### ❌ Problemas Comuns:
+### Problemas Comuns:
 
 **"Docker não encontrado"**
 ```powershell
@@ -414,7 +455,7 @@ pip install fastapi uvicorn scikit-learn pytest
 curl http://localhost:4566/health
 ```
 
-## 📚 Referências
+## Referências
 
 - [FakeBR Dataset](https://github.com/roneysco/Fake.br-Corpus)
 - [FakeRecogna Dataset](https://www.kaggle.com/datasets/ruchi798/fakerecogna)
@@ -425,9 +466,9 @@ curl http://localhost:4566/health
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Scikit-learn User Guide](https://scikit-learn.org/stable/user_guide.html)
 
-## � Custos - 100% Gratuito!
+## Custos - 100% Gratuito!
 
-### ✅ **Componentes Gratuitos:**
+### **Componentes Gratuitos:**
 - 🐙 **GitHub**: Repositório público (ilimitado)
 - 🐍 **Python & Libraries**: Scikit-learn, FastAPI, Pandas (open source)
 - 🐳 **Docker**: Desktop gratuito para uso pessoal/educacional
@@ -435,13 +476,13 @@ curl http://localhost:4566/health
 - 📊 **MLflow**: Open source (roda local)
 - 📓 **Jupyter**: Open source
 
-### 💡 **Por que é gratuito:**
+### **Por que é gratuito:**
 - **Sem serviços cloud pagos**: Usa LocalStack em vez de AWS real
 - **Execução local**: Docker roda na sua máquina
 - **Bibliotecas open source**: Todas as dependências são livres
 - **Sem CI/CD pago**: Removido GitHub Actions
 
-### ⚠️ **Se quiser usar serviços reais (custaria):**
+### **Se quiser usar serviços reais (custaria):**
 - AWS S3 real (~$0.02/GB/mês)
 - AWS EC2 (~$10+/mês)  
 - Heroku/Railway (~$5+/mês)
@@ -449,11 +490,11 @@ curl http://localhost:4566/health
 
 **Recomendação**: Mantenha tudo local para desenvolvimento e aprendizado!
 
-## �📄 Licença
+## Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
 
-## 📞 Contato
+## Contato
 
 - **Autor**: [Seu Nome]
 - **Email**: [seu-email@exemplo.com]

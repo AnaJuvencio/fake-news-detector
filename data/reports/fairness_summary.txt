@@ -1,0 +1,16 @@
+ANÁLISE DE FAIRNESS - DATASET FAKEBR
+==================================================
+
+Taxa geral de fake news: 0.500 (50.0%)
+
+MÉTRICAS POR CATEGORIA:
+------------------------------
+politica: SPD=+0.000, DI=1.00
+tv_celebridades: SPD=+0.000, DI=1.00
+sociedade_cotidiano: SPD=+0.000, DI=1.00
+ciencia_tecnologia: SPD=+0.000, DI=1.00
+economia: SPD=+0.000, DI=1.00
+religiao: SPD=+0.000, DI=1.00
+
+Categorias com possível viés:
+Nenhuma categoria com viés alto detectada!
