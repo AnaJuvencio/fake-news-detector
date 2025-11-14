@@ -1,42 +1,95 @@
+# Versão do formato do docker-compose (3.8 é uma versão estável e moderna)
 version: '3.8'
 
 services:
-  # LocalStack para simulação do S3
+  # LocalStack: Simula serviços da AWS localmente (S3, DynamoDB, Lambda, etc.)
+  # É como ter uma "AWS fake" no seu computador para desenvolvimento
   localstack:
+    # Imagem Docker oficial do LocalStack (última versão disponível)
     image: localstack/localstack:latest
+    
+    # Nome que o container vai ter (facilita identificar com 'docker ps')
     container_name: fake-news-localstack
+    
+    # Mapeamento de portas: porta_do_seu_pc:porta_dentro_do_container
     ports:
-      - "4566:4566"  # LocalStack endpoint
-      - "4510-4559:4510-4559"  # range de portas para serviços
+      - "4566:4566"  # Porta principal do LocalStack (todos os serviços AWS usam essa porta)
+      - "4510-4559:4510-4559"  # Range de portas extras para serviços específicos
+    
+    # Variáveis de ambiente: configurações que o LocalStack vai usar
     environment:
+      # SERVICES: quais serviços AWS você quer simular (aqui só S3)
       - SERVICES=s3
+      
+      # DEBUG: ativa logs detalhados (1=sim, 0=não) - útil para aprender e debugar
       - DEBUG=1
+      
+      # DATA_DIR: onde o LocalStack salva os dados dentro do container
       - DATA_DIR=/tmp/localstack/data
+      
+      # PERSISTENCE: mantém os dados mesmo depois de reiniciar o container (1=sim)
       - PERSISTENCE=1
+      
+      # AWS_DEFAULT_REGION: região AWS padrão (us-east-1 é a mais comum)
       - AWS_DEFAULT_REGION=us-east-1
+      
+      # Credenciais fake para acessar o LocalStack (pode ser qualquer valor)
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+    
+    # Volumes: conecta pastas do seu PC com o container (sincroniza arquivos)
     volumes:
+      # ./localstack_data (no PC) <-> /tmp/localstack (no container)
+      # Aqui os dados do S3 serão salvos no seu PC
       - "./localstack_data:/tmp/localstack"
+      
+      # Copia o script de inicialização para dentro do container
+      # /ready.d/ = scripts executados quando o LocalStack estiver pronto
       - "./localstack_bootstrap.sh:/etc/localstack/init/ready.d/init-aws.sh"
+      
+      # Permite o LocalStack acessar o Docker do seu PC (necessário para alguns recursos)
       - "/var/run/docker.sock:/var/run/docker.sock"
+    
+    # Healthcheck: testa se o serviço está funcionando (container "saudável")
     healthcheck:
+      # Comando: faz uma requisição HTTP para verificar se está OK
       test: ["CMD", "curl", "-f", "http://localhost:4566/health"]
+      
+      # Testa a cada 30 segundos
       interval: 30s
+      
+      # Espera até 10 segundos por resposta
       timeout: 10s
+      
+      # Tenta 3 vezes antes de marcar como "unhealthy"
       retries: 3
 
-  # MLflow para tracking de experimentos
+  # MLflow: Plataforma para tracking de experimentos de ML
+  # Registra métricas, modelos, parâmetros - como um "histórico" dos experimentos
   mlflow:
+    # Imagem Python básica (não tem MLflow pré-instalado)
     image: python:3.9-slim
+    
+    # Nome do container
     container_name: fake-news-mlflow
+    
+    # Porta 5000: interface web do MLflow (http://localhost:5000)
     ports:
       - "5000:5000"
+    
+    # Configurações do MLflow
     environment:
+      # BACKEND_STORE_URI: onde salvar metadados (SQLite = banco simples)
       - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      
+      # ARTIFACT_ROOT: onde salvar arquivos grandes (modelos, gráficos, etc.)
       - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    
+    # Volume para persistir dados do MLflow
     volumes:
-      - mlflow_data:/mlflow
+      - mlflow_data:/mlflow  # Volume nomeado (Docker gerencia onde fica)
+    
+    # Comando executado quando o container inicia
     command: >
       bash -c "
         pip install mlflow boto3 &&
@@ -46,58 +99,108 @@ services:
           --host 0.0.0.0 
           --port 5000
       "
+    
+    # depends_on: só inicia depois que o LocalStack estiver rodando
     depends_on:
       - localstack
+    
+    # Testa se o MLflow está funcionando
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # API de detecção de fake news
+  # API REST: Serviço que recebe texto e retorna se é fake/real
+  # É a "interface" que aplicações externas usam para detectar fake news
   fake-news-api:
+    # build: constrói imagem customizada (não usa imagem pronta)
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
+      context: ..  # Usa pasta pai como contexto (onde está o código src/)
+      dockerfile: docker/Dockerfile.api  # Arquivo com instruções de build
+    
     container_name: fake-news-api
+    
+    # Porta 8000: API REST (http://localhost:8000)
     ports:
       - "8000:8000"
+    
+    # Variáveis de ambiente que a API vai usar
     environment:
+      # PYTHONPATH: onde Python vai procurar módulos (pasta src/)
       - PYTHONPATH=/app/src
-      - S3_ENDPOINT=http://localstack:4566
-      - S3_BUCKET=fake-news-models
-      - MODEL_KEY=models/best_model.joblib
-      - VECTORIZER_KEY=models/vectorizer.joblib
+      
+      # Configurações do S3 (LocalStack)
+      - S3_ENDPOINT=http://localstack:4566  # Aponta para o LocalStack
+      - S3_BUCKET=fake-news-models          # Nome do bucket
+      - MODEL_KEY=models/best_model.joblib  # Caminho do modelo no S3
+      - VECTORIZER_KEY=models/vectorizer.joblib  # Caminho do vectorizer no S3
+      
+      # MLflow para logging
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+    
+    # Depende de LocalStack (modelos) e MLflow (logging)
     depends_on:
       - localstack
       - mlflow
+    
+    # Reinicia automaticamente se falhar
     restart: unless-stopped
+    
+    # Testa se a API está respondendo
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Jupyter Notebook para desenvolvimento
+  # Jupyter Notebook: Ambiente de desenvolvimento para cientistas de dados
+  # Alternativa ao VS Code para experimentar com ML
   jupyter:
+    # Imagem com Python + bibliotecas científicas (numpy, pandas, sklearn, etc.)
     image: jupyter/scipy-notebook:latest
+    
     container_name: fake-news-jupyter
+    
+    # Porta 8888: interface web do Jupyter (http://localhost:8888)
     ports:
       - "8888:8888"
+    
     environment:
+      # JUPYTER_ENABLE_LAB: usa JupyterLab (interface mais moderna)
       - JUPYTER_ENABLE_LAB=yes
+      
+      # TOKEN: senha para acessar (token=fake-news-dev)
       - JUPYTER_TOKEN=fake-news-dev
+    
+    # Conecta pastas do projeto no container
     volumes:
+      # Notebooks ficam acessíveis no Jupyter
       - "../notebooks:/home/jovyan/notebooks"
+      
+      # Dados ficam acessíveis no Jupyter
       - "../data:/home/jovyan/data"
+      
+      # Código fonte fica acessível no Jupyter
       - "../src:/home/jovyan/src"
+    
+    # Comando customizado para iniciar com token específico
     command: start-notebook.sh --NotebookApp.token='fake-news-dev'
 
+# ============================================
+# VOLUMES: Armazenamento persistente
+# ============================================
 volumes:
+  # Volume para dados do MLflow (experimentos, modelos registrados)
   mlflow_data:
+  
+  # Volume para dados do LocalStack (buckets S3, objetos)
   localstack_data:
 
+# ============================================
+# NETWORKS: Rede interna dos containers
+# ============================================
 networks:
   default:
+    # Nome customizado da rede (todos os containers se comunicam por aqui)
     name: fake-news-network

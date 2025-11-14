@@ -1,28 +1,50 @@
-# Dockerfile para a API de detecção de fake news
+# ============================================
+# Dockerfile: Receita para construir a imagem da API
+# ============================================
+
+# FROM: Imagem base (Python 3.9 slim = Python sem ferramentas extras)
 FROM python:3.9-slim
 
-# Definir diretório de trabalho
+# WORKDIR: Define pasta de trabalho dentro do container (/app)
 WORKDIR /app
 
-# Instalar dependências do sistema
+# ============================================
+# PASSO 1: Instalar dependências do sistema
+# ============================================
+# RUN: executa comandos durante a construção da imagem
+# apt-get: gerenciador de pacotes do Linux (Ubuntu/Debian)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements
+# ============================================
+# PASSO 2: Instalar dependências Python
+# ============================================
+# COPY: copia arquivo do PC para dentro da imagem
 COPY requirements.txt .
 
-# Instalar dependências Python
+# pip install: instala bibliotecas Python
+# --no-cache-dir: não salva cache (economiza espaço)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código fonte
+# ============================================
+# PASSO 3: Copiar código fonte
+# ============================================
+# Copia pasta src/ do PC para ./src/ no container
 COPY src/ ./src/
 
-# Criar diretório para modelos
+# ============================================
+# PASSO 4: Criar estrutura de pastas
+# ============================================
+# mkdir -p: cria pasta (e pastas pai se necessário)
 RUN mkdir -p models
 
-# Variáveis de ambiente
+# ============================================
+# PASSO 5: Configurar variáveis de ambiente
+# ============================================
+# ENV: define variáveis que estarão disponíveis quando o container rodar
 ENV PYTHONPATH=/app/src
 ENV HOST=0.0.0.0
 ENV PORT=8000
@@ -31,12 +53,25 @@ ENV S3_BUCKET=fake-news-models
 ENV MODEL_KEY=models/best_model.joblib
 ENV VECTORIZER_KEY=models/vectorizer.joblib
 
-# Expor porta
+# ============================================
+# PASSO 6: Configurar rede
+# ============================================
+# EXPOSE: informa que a aplicação usa essa porta (documentação)
 EXPOSE 8000
 
-# Comando para iniciar a aplicação
+# ============================================
+# PASSO 7: Definir comando de inicialização
+# ============================================
+# CMD: comando executado quando o container iniciar
 CMD ["python", "src/api/app.py"]
 
-# Health check
+# ============================================
+# PASSO 8: Configurar monitoramento de saúde
+# ============================================
+# HEALTHCHECK: Docker verifica se o container está funcionando
+# --interval=30s: testa a cada 30 segundos
+# --timeout=10s: espera resposta por até 10 segundos
+# --start-period=5s: espera 5s antes do primeiro teste (tempo para inicializar)
+# --retries=3: marca como "unhealthy" após 3 falhas consecutivas
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
