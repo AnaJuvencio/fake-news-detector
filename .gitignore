@@ -57,6 +57,15 @@ cover/
 
 # Django stuff:
 *.log
+# ============================================
+# SEGURANÇA: Variáveis de ambiente
+# ============================================
+# Nunca commite arquivos com credenciais reais!
+.env
+.env.local
+.env.*.local
+.env.production
+
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
